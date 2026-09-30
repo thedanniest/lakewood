@@ -44,8 +44,8 @@ def main():
         errors.append("soi label links are not empty")
 
     features = geo["features"]
-    if len(features) < 40:
-        errors.append(f"too few roads: {len(features)}")
+    if not 8 <= len(features) <= 40:
+        errors.append(f"unexpected road count: {len(features)}")
     nearest = float("inf")
     for feature in features:
         props = feature["properties"]
@@ -54,8 +54,13 @@ def main():
         if feature["geometry"]["type"] != "LineString":
             errors.append("geometry is not a LineString")
         for lon, lat in feature["geometry"]["coordinates"]:
-            if hav(PIN, (lat, lon)) > 5000:
-                errors.append(f"way {props.get('osm_way_id')} is more than 5 km from the pin")
+            east = (lon - PIN[1]) * 111320.0 * math.cos(math.radians(PIN[0]))
+            north = (lat - PIN[0]) * 111320.0
+            if east > 840:
+                errors.append(f"way {props.get('osm_way_id')} is east of the golf village")
+                break
+            if north > 1800 or north < -200:
+                errors.append(f"way {props.get('osm_way_id')} is outside the golf village")
                 break
             nearest = min(nearest, hav(PIN, (lat, lon)))
         blob = json.dumps(props)

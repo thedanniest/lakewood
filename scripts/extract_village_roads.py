@@ -5,9 +5,9 @@ The country-club pin is 13.6104, 100.7633. The village streets through
 that pin are highway=residential and access=private. Service paths,
 tracks, and golf-cart lines are not downloaded.
 
-A few private residential ways at the north edge are drawn a few metres
-short of a shared node (a roundabout and the streets on it). Ways within
-12 metres of the network are kept. Private ways farther off stay out.
+Dan's wide view is the golf village. The next estate's street grid
+begins where those fairways end, 820 m east of the pin. Roads on that
+grid are left out. A way that crosses the edge keeps only the village side.
 """
 
 import json
@@ -21,6 +21,10 @@ PIN = (13.6104, 100.7633)
 # south, west, north, east. Wide enough that the private network is not cut.
 BBOX = (13.605, 100.755, 13.650, 100.810)
 GAP_M = 12.0
+# Easting of the fairway edge, metres east of the club pin.
+# West of this line the streets are in the golf village.
+# East of it they are the next estate.
+VILLAGE_EAST_M = 820.0
 OVERPASS = "https://overpass.openstreetmap.fr/api/interpreter"
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -139,6 +143,84 @@ def line_distance_to_pin(geom):
     return min(hav(PIN, (point["lat"], point["lon"])) for point in geom)
 
 
+def east_metres(lon):
+    return (lon - PIN[1]) * 111320.0 * math.cos(math.radians(PIN[0]))
+
+
+def north_metres(lat):
+    return (lat - PIN[0]) * 111320.0
+
+
+def lonlat_from_metres(east, north):
+    lon = PIN[1] + east / (111320.0 * math.cos(math.radians(PIN[0])))
+    lat = PIN[0] + north / 111320.0
+    return [round(lon, 6), round(lat, 6)]
+
+
+def clip_to_village(coordinates):
+    """Keep the part of a [lon, lat] line that is still inside the village."""
+    measured = [(east_metres(lon), north_metres(lat)) for lon, lat in coordinates]
+    pieces = []
+    current = []
+
+    def emit():
+        nonlocal current
+        if len(current) >= 2:
+            pieces.append(current)
+        current = []
+
+    for index, (east, north) in enumerate(measured):
+        if east <= VILLAGE_EAST_M:
+            if not current and index > 0 and measured[index - 1][0] > VILLAGE_EAST_M:
+                previous_east, previous_north = measured[index - 1]
+                span = east - previous_east
+                ratio = (VILLAGE_EAST_M - previous_east) / span
+                current.append(
+                    (VILLAGE_EAST_M, previous_north + (north - previous_north) * ratio)
+                )
+            current.append((east, north))
+            continue
+        if current:
+            previous_east, previous_north = current[-1]
+            span = east - previous_east
+            ratio = (VILLAGE_EAST_M - previous_east) / span
+            current.append(
+                (VILLAGE_EAST_M, previous_north + (north - previous_north) * ratio)
+            )
+            emit()
+    emit()
+
+    lines = []
+    for piece in pieces:
+        length = sum(
+            math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(piece, piece[1:])
+        )
+        # A short remainder is the start of a road that has already left
+        # the fairways. Leave it out.
+        if length < 150:
+            continue
+        lines.append([lonlat_from_metres(east, north) for east, north in piece])
+    return lines
+
+
+def cut_to_village(features):
+    kept = []
+    for feature in features:
+        coordinates = feature["geometry"]["coordinates"]
+        easts = [east_metres(lon) for lon, _lat in coordinates]
+        if max(easts) <= VILLAGE_EAST_M:
+            kept.append(feature)
+            continue
+        if min(easts) > VILLAGE_EAST_M:
+            continue
+        for line in clip_to_village(coordinates):
+            piece = json.loads(json.dumps(feature))
+            piece["geometry"]["coordinates"] = line
+            piece["properties"]["cut_at_village_edge"] = True
+            kept.append(piece)
+    return kept
+
+
 def as_feature(way, joined_by_gap):
     coordinates = [
         [round(point["lon"], 6), round(point["lat"], 6)] for point in way["geometry"]
@@ -159,8 +241,15 @@ def main():
     ways, timestamp = fetch_ways()
     selected, joined_by_gap, seed = select(ways)
     by_id = {way["id"]: way for way in ways}
-    features = [as_feature(by_id[way_id], joined_by_gap) for way_id in sorted(selected)]
-    nearest = min(line_distance_to_pin(by_id[way_id]["geometry"]) for way_id in selected)
+    features = cut_to_village(
+        [as_feature(by_id[way_id], joined_by_gap) for way_id in sorted(selected)]
+    )
+    nearest = min(
+        line_distance_to_pin(
+            [{"lon": lon, "lat": lat} for lon, lat in feature["geometry"]["coordinates"]]
+        )
+        for feature in features
+    )
     if nearest > 30:
         raise SystemExit(f"club pin is {nearest:.0f} m from the nearest kept road")
     collection = {"type": "FeatureCollection", "features": features}
@@ -180,13 +269,19 @@ def main():
         "pin": [PIN[0], PIN[1]],
         "osm_timestamp": timestamp,
         "feature_count": len(features),
-        "joined_within_12m": sorted(joined_by_gap),
+        "joined_within_12m": sorted(
+            way_id
+            for way_id in joined_by_gap
+            if any(feature["properties"]["osm_way_id"] == way_id for feature in features)
+        ),
         "seed_osm_way_id": seed,
         "nearest_road_metres": round(nearest, 1),
+        "village_east_metres": VILLAGE_EAST_M,
         "filter": (
-            "highway=residential and access=private, connected through the club pin. "
-            "Private residential ways within 12 m are included. "
-            "Service paths, tracks, and other highway types are not."
+            "highway=residential and access=private, connected through the club pin, "
+            "and still inside the golf village. The next estate's street grid, "
+            "which starts 820 m east of the pin, is left out. "
+            "Service paths, tracks, and golf-cart lines are not included."
         ),
     }
     (data_dir / "village-roads.meta.json").write_text(
@@ -194,7 +289,7 @@ def main():
     )
     print(
         f"wrote {len(features)} roads, seed {seed}, "
-        f"nearest {nearest:.1f} m, gap-joined {sorted(joined_by_gap)}, osm {timestamp}"
+        f"nearest {nearest:.1f} m, osm {timestamp}"
     )
 
 
