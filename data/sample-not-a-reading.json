@@ -2,7 +2,6 @@
   "fake": true,
   "this_file_is": "a made-up example of a row shape",
   "it_is_not": "a flood report, a water level, or a list of residents",
-  "real_readings": "stay out of GitHub",
   "example_row": {
     "soi_label": "ซอย ตัวอย่าง",
     "place": "not a real house",
