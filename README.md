@@ -8,7 +8,7 @@ The page is the road geometry for the maker of the crowd-source app at <https://
 
 ## Open the page
 
-Open `index.html` in a browser (double-click, or any static file server). The roads are in the repo. The background map is OpenStreetMap. There is no API key and nothing here is deployed.
+Open `index.html` in a browser (double-click, or any static file server). The roads are in the repo. The background is a plain OpenStreetMap map (CARTO's light tiles). There is no API key and nothing here is deployed.
 
 The line on the page is the whole claim: these are the village roads, not the water level.
 
