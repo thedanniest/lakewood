@@ -8,13 +8,13 @@ The page is the road geometry for the maker of the crowd-source app at <https://
 
 ## Open the page
 
-Open `index.html` in a browser (double-click, or any static file server). The roads are in the repo. The background map is OpenStreetMap's own tiles. There is no API key and nothing here is deployed.
+Open `index.html` in a browser (double-click, or any static file server). The roads are in the repo. The background map is OpenStreetMap's own tiles. There is no API key.
 
 The line on the page is the whole claim: these are the village roads, not the water level.
 
 ## What is drawn
 
-OpenStreetMap has the lines and almost no soi names. The file `data/village-roads.geojson` keeps `highway=residential` ways tagged `access=private` that connect through the club pin. That is the gated village. One roundabout at the north edge, and the three streets on it, sit a few metres short of a shared node, so they are included too. Service paths, tracks, and golf-cart lines are left out, and so are the public roads of the neighboring estates.
+OpenStreetMap has the lines and almost no soi names. `data/village-roads.geojson` keeps the private residential streets inside the golf village from the wide view, the ones that run through the fairways from the club pin. Where the fairways end, about 820 m east of the pin, the next estate's street grid begins. Those roads are left out. A street that crosses that edge keeps only the village side. Service paths, tracks, and golf-cart lines are left out too.
 
 Every road is one neutral color. Nothing is green, because a green line gets read as safe to drive.
 
