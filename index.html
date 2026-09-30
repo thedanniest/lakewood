@@ -80,16 +80,16 @@
   <script>
     var PIN = [13.6104, 100.7633];
     var ROAD_COLOR = "#4a453f";
+    var ROAD_HALO = "#f7f4ee";
     var SHORT_SOI = /^ซอย \d{1,2}$/;
 
     var map = L.map("map", {
       scrollWheelZoom: true
     }).setView(PIN, 14);
 
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-      subdomains: "abcd",
-      maxZoom: 20,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
     }).addTo(map);
 
     function labelsByWay(file) {
@@ -112,8 +112,15 @@
     var roads = window.LAKEWOOD_ROADS;
 
     L.geoJSON(roads, {
+      interactive: false,
       style: function () {
-        return { color: ROAD_COLOR, weight: 3, opacity: 0.95 };
+        return { color: ROAD_HALO, weight: 7, opacity: 0.95 };
+      }
+    }).addTo(map);
+
+    L.geoJSON(roads, {
+      style: function () {
+        return { color: ROAD_COLOR, weight: 3.5, opacity: 1 };
       },
       onEachFeature: function (feature, layer) {
         var wayId = feature.properties.osm_way_id;

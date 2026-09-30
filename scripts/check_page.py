@@ -69,8 +69,10 @@ def main():
         errors.append("disclaimer line is missing")
     if "sample-not-a-reading" in html:
         errors.append("the fake sample is drawn on the page")
-    if re.search(r"google|maps\.googleapis|AIza", html, re.I):
-        errors.append("page mentions Google or an API key")
+    if re.search(r"google|maps\.googleapis|AIza|cartocdn|api key", html, re.I):
+        errors.append("page mentions Google, CARTO, or an API key")
+    if "tile.openstreetmap.org" not in html:
+        errors.append("basemap is not OpenStreetMap")
     colors = set(re.findall(r"#[0-9a-fA-F]{6}", html))
     for color in colors:
         red = int(color[1:3], 16)
