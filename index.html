@@ -178,6 +178,13 @@
       }
     }).addTo(map);
 
+    L.geoJSON(roads, {
+      interactive: false,
+      style: function (feature) {
+        return lineStyle(feature, false);
+      }
+    }).addTo(map);
+
     function toMetres(lat, lon) {
       return {
         e: (lon - PIN[1]) * 111320 * Math.cos(PIN[0] * Math.PI / 180),
@@ -270,6 +277,7 @@
     function textMarker(pair, text, className) {
       L.circleMarker([pair[1], pair[0]], {
         radius: 0,
+        weight: 0,
         opacity: 0,
         fillOpacity: 0,
         interactive: false
@@ -283,7 +291,8 @@
 
     L.geoJSON(roads, {
       style: function (feature) {
-        return lineStyle(feature, false);
+        var reading = readings[feature.properties.osm_way_id];
+        return {color: UNNAMED_COLOR, weight: reading ? 16 : 12, opacity: 0};
       },
       onEachFeature: function (feature, layer) {
         var wayId = feature.properties.osm_way_id;
