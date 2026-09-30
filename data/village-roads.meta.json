@@ -3,11 +3,21 @@
     13.6104,
     100.7633
   ],
-  "osm_timestamp": "2026-09-30T15:21:35Z",
-  "feature_count": 20,
+  "named_cluster": [
+    13.61523,
+    100.77697
+  ],
+  "osm_timestamp": "2026-09-30T22:22:35Z",
+  "feature_count": 32,
+  "kept_published_count": 19,
+  "cluster_count": 13,
   "joined_within_12m": [],
   "seed_osm_way_id": 597161191,
   "nearest_road_metres": 5.1,
-  "village_east_metres": 820.0,
-  "filter": "highway=residential and access=private, connected through the club pin, and still inside the golf village. The next estate's street grid, which starts 820 m east of the pin, is left out. Service paths, tracks, and golf-cart lines are not included."
+  "named_way_osm_id": 931312194,
+  "named_way_distance_m": 0.51,
+  "next_way_distance_m": 80.5,
+  "cluster_radius_metres": 400.0,
+  "east_cap_metres": 2000.0,
+  "filter": "highway=residential and access=private, connected through the club pin. Roads already on the page stay. Other roads in that network are added when they come within 400 m of 13.61523, 100.77697. Nothing farther than 2 km east of the pin is included. Service paths, tracks, and golf-cart lines are not included."
 }
