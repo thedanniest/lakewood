@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lakewood village roads</title>
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+    }
+    body {
+      display: flex;
+      flex-direction: column;
+      font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+      color: #2c3136;
+      background: #e7e2d8;
+    }
+    #map {
+      flex: 1;
+      min-height: 0;
+      background: #e7e2d8;
+    }
+    footer {
+      flex: none;
+      box-sizing: border-box;
+      display: flex;
+      align-items: baseline;
+      gap: 14px;
+      padding: 14px 18px;
+      background: #f6f3ee;
+      border-top: 1px solid #d5cfc4;
+    }
+    footer strong {
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    footer p {
+      margin: 0;
+    }
+    .pin-label {
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+      color: #2c3136;
+      font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+      font-size: 13px;
+      padding: 0;
+    }
+    .pin-label:before {
+      display: none;
+    }
+    .soi-label {
+      background: rgba(246, 243, 238, 0.92);
+      border: 0;
+      box-shadow: none;
+      color: #2c3136;
+      font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+      font-size: 13px;
+    }
+    @media (max-width: 640px) {
+      footer {
+        flex-direction: column;
+        gap: 2px;
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="map" role="region" aria-label="Lakewood village roads"></div>
+  <footer>
+    <strong>Lakewood village roads</strong>
+    <p>These are the village roads, not the water level.</p>
+  </footer>
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="data/village-roads.js"></script>
+  <script src="data/soi-labels.js"></script>
+  <script>
+    var PIN = [13.6104, 100.7633];
+    var ROAD_COLOR = "#4a453f";
+    var SHORT_SOI = /^ซอย \d{1,2}$/;
+
+    var map = L.map("map", {
+      scrollWheelZoom: true
+    }).setView(PIN, 14);
+
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(map);
+
+    function labelsByWay(file) {
+      var counts = {};
+      var links = (file && file.links) || [];
+      links.forEach(function (link) {
+        counts[link.osm_way_id] = (counts[link.osm_way_id] || 0) + 1;
+      });
+      var byWay = {};
+      links.forEach(function (link) {
+        var label = typeof link.label === "string" ? link.label.trim() : "";
+        if (counts[link.osm_way_id] === 1 && SHORT_SOI.test(label)) {
+          byWay[link.osm_way_id] = label;
+        }
+      });
+      return byWay;
+    }
+
+    var labels = labelsByWay(window.LAKEWOOD_SOI_LABELS);
+    var roads = window.LAKEWOOD_ROADS;
+
+    L.geoJSON(roads, {
+      style: function () {
+        return { color: ROAD_COLOR, weight: 3, opacity: 0.95 };
+      },
+      onEachFeature: function (feature, layer) {
+        var wayId = feature.properties.osm_way_id;
+        var label = labels[wayId];
+        var popup = document.createElement("div");
+        var name = document.createElement("div");
+        name.textContent = label || "No soi name";
+        var idLine = document.createElement("div");
+        idLine.textContent = "OSM way " + wayId;
+        popup.appendChild(name);
+        popup.appendChild(idLine);
+        layer.bindPopup(popup);
+        if (label) {
+          var mid = Math.floor(feature.geometry.coordinates.length / 2);
+          var pair = feature.geometry.coordinates[mid];
+          L.marker([pair[1], pair[0]], {
+            icon: L.divIcon({ className: "soi-label", html: label, iconSize: [48, 18] })
+          }).addTo(map);
+        }
+      }
+    }).addTo(map);
+
+    L.circleMarker(PIN, {
+      radius: 6,
+      color: ROAD_COLOR,
+      weight: 2,
+      fillColor: "#f6f3ee",
+      fillOpacity: 1
+    }).addTo(map).bindTooltip("Lakewood Country Club", {
+      permanent: true,
+      direction: "right",
+      offset: [8, 0],
+      className: "pin-label"
+    });
+  </script>
+</body>
+</html>

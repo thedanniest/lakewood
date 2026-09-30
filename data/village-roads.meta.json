@@ -1,0 +1,17 @@
+{
+  "pin": [
+    13.6104,
+    100.7633
+  ],
+  "osm_timestamp": "2026-09-30T13:04:48Z",
+  "feature_count": 91,
+  "joined_within_12m": [
+    597241866,
+    597241869,
+    597241872,
+    597241876
+  ],
+  "seed_osm_way_id": 597161191,
+  "nearest_road_metres": 5.1,
+  "filter": "highway=residential and access=private, connected through the club pin. Private residential ways within 12 m are included. Service paths, tracks, and other highway types are not."
+}
