@@ -39,48 +39,17 @@
     footer p {
       margin: 0;
     }
-    .pin-label,
-    .soi-label,
-    .depth-label {
-      background: rgba(246, 243, 238, 0.94);
+    .pin-label {
+      background: transparent;
       border: 0;
       box-shadow: none;
       color: #2c3136;
       font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
       font-size: 13px;
-      padding: 1px 4px;
-    }
-    .pin-label {
-      background: transparent;
       padding: 0;
     }
-    .depth-label {
-      font-weight: 600;
-    }
-    .pin-label:before,
-    .soi-label:before,
-    .depth-label:before {
+    .pin-label:before {
       display: none;
-    }
-    .legend {
-      background: rgba(246, 243, 238, 0.94);
-      border: 1px solid #d5cfc4;
-      border-radius: 4px;
-      padding: 8px 10px;
-      color: #2c3136;
-      font-size: 13px;
-      line-height: 1.45;
-    }
-    .legend div {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .legend i {
-      width: 22px;
-      height: 4px;
-      border-radius: 2px;
-      display: inline-block;
     }
     @media (max-width: 640px) {
       footer {
@@ -95,7 +64,7 @@
   <div id="map" role="region" aria-label="Lakewood village roads"></div>
   <footer>
     <strong>Lakewood village roads</strong>
-    <p>ระดับน้ำล่าสุด ไม่ใช่ทางที่รถผ่านได้</p>
+    <p>These are the village roads, not the water level.</p>
   </footer>
   <script src="vendor/leaflet/leaflet.js"></script>
   <script src="data/village-roads.js"></script>
@@ -103,17 +72,8 @@
   <script>
     var PIN = [13.6104, 100.7633];
     var CLUSTER = [13.61523, 100.77697];
-    var UNNAMED_COLOR = "#4a453f";
-    var UNNAMED_HALO = "#f7f4ee";
-    var SHORT_SOI = /^ซอย \d{1,2}(?:\/\d{1,2})?$/;
-    var DEPTH_SCALE = [
-      {"through": 0, "color": "#1b7f3a", "label": "0"},
-      {"through": 10, "color": "#8fce4a", "label": "1–10"},
-      {"through": 20, "color": "#e0b400", "label": "11–20"},
-      {"through": 40, "color": "#ef8a12", "label": "21–40"},
-      {"through": 70, "color": "#d23b3b", "label": "41–70"},
-      {"through": null, "color": "#6d28a8", "label": "71 ขึ้นไป"}
-    ];
+    var ROAD_COLOR = "#4a453f";
+    var ROAD_HALO = "#f7f4ee";
 
     var map = L.map("map", {
       scrollWheelZoom: true
@@ -124,216 +84,45 @@
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
     }).addTo(map);
 
-    function colorForDepth(cm) {
-      var i;
-      for (i = 0; i < DEPTH_SCALE.length; i++) {
-        if (DEPTH_SCALE[i].through === null || cm <= DEPTH_SCALE[i].through) {
-          return DEPTH_SCALE[i].color;
-        }
-      }
-    }
-
-    function depthText(cm) {
-      return cm.toString() + " ซม.";
-    }
-
-    function readingsByWay(file) {
-      var counts = {};
-      var links = (file && file.links) || [];
-      links.forEach(function (link) {
-        counts[link.osm_way_id] = (counts[link.osm_way_id] || 0) + 1;
-      });
-      var byWay = {};
-      links.forEach(function (link) {
-        var label = typeof link.label === "string" ? link.label.trim() : "";
-        var depth = link.depth_cm;
-        if (counts[link.osm_way_id] !== 1) return;
-        if (!SHORT_SOI.test(label)) return;
-        if (typeof depth !== "number" || !isFinite(depth)) return;
-        byWay[link.osm_way_id] = {
-          label: label,
-          depth_cm: depth,
-          color: colorForDepth(depth),
-          text: depthText(depth)
-        };
-      });
-      return byWay;
-    }
-
-    var readings = readingsByWay(window.LAKEWOOD_SOI_LABELS);
     var roads = window.LAKEWOOD_ROADS;
 
-    function lineStyle(feature, halo) {
-      var reading = readings[feature.properties.osm_way_id];
-      if (!reading) {
-        return {color: halo ? UNNAMED_HALO : UNNAMED_COLOR, weight: halo ? 4.5 : 2.2, opacity: 1};
-      }
-      return {color: halo ? UNNAMED_HALO : reading.color, weight: halo ? 8 : 5, opacity: 1};
+    function lineStyle(halo) {
+      return {color: halo ? ROAD_HALO : ROAD_COLOR, weight: halo ? 4.5 : 2.2, opacity: 1};
     }
 
     L.geoJSON(roads, {
       interactive: false,
-      style: function (feature) {
-        return lineStyle(feature, true);
+      style: function () {
+        return lineStyle(true);
       }
     }).addTo(map);
 
     L.geoJSON(roads, {
       interactive: false,
-      style: function (feature) {
-        return lineStyle(feature, false);
+      style: function () {
+        return lineStyle(false);
       }
     }).addTo(map);
 
-    function toMetres(lat, lon) {
-      return {
-        e: (lon - PIN[1]) * 111320 * Math.cos(PIN[0] * Math.PI / 180),
-        n: (lat - PIN[0]) * 111320
-      };
-    }
-
-    function metresBetween(a, b) {
-      var am = toMetres(a[1], a[0]);
-      var bm = toMetres(b[1], b[0]);
-      return Math.hypot(am.e - bm.e, am.n - bm.n);
-    }
-
-    function pointAtDistance(coords, seg, dist) {
-      var walked = 0;
-      var i;
-      for (i = 0; i < seg.length; i++) {
-        if (walked + seg[i] >= dist) {
-          var t = seg[i] === 0 ? 0 : (dist - walked) / seg[i];
-          var a = coords[i];
-          var b = coords[i + 1];
-          return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
-        }
-        walked += seg[i];
-      }
-      return coords[coords.length - 1];
-    }
-
-    function junctionCoords(feature) {
-      var coords = feature.geometry.coordinates;
-      var mine = {};
-      coords.forEach(function (pair) {
-        mine[pair[0].toFixed(6) + "," + pair[1].toFixed(6)] = true;
-      });
-      var found = [coords[0], coords[coords.length - 1]];
-      roads.features.forEach(function (other) {
-        if (other.properties.osm_way_id === feature.properties.osm_way_id) return;
-        other.geometry.coordinates.forEach(function (pair) {
-          if (mine[pair[0].toFixed(6) + "," + pair[1].toFixed(6)]) found.push(pair);
-        });
-      });
-      return found;
-    }
-
-    function clearance(pair, junctions) {
-      var best = Infinity;
-      var m = toMetres(pair[1], pair[0]);
-      junctions.forEach(function (junction) {
-        var jm = toMetres(junction[1], junction[0]);
-        best = Math.min(best, Math.hypot(m.e - jm.e, m.n - jm.n));
-      });
-      return best;
-    }
-
-    function labelAnchors(feature) {
-      var coords = feature.geometry.coordinates;
-      var seg = [];
-      var total = 0;
-      var i;
-      for (i = 1; i < coords.length; i++) {
-        var len = metresBetween(coords[i - 1], coords[i]);
-        seg.push(len);
-        total += len;
-      }
-      var junctions = junctionCoords(feature);
-      var step = 2;
-      var depth = null;
-      var dist;
-      for (dist = step; dist < total - step; dist += step) {
-        var pair = pointAtDistance(coords, seg, dist);
-        var gap = clearance(pair, junctions);
-        if (!depth || gap > depth.gap) depth = {dist: dist, pair: pair, gap: gap};
-      }
-      var name = null;
-      for (dist = step; dist < total - step; dist += step) {
-        if (Math.abs(dist - depth.dist) < 42) continue;
-        var namePair = pointAtDistance(coords, seg, dist);
-        var nameGap = clearance(namePair, junctions);
-        if (nameGap < 25) continue;
-        if (!name || nameGap > name.gap) name = {pair: namePair, gap: nameGap};
-      }
-      if (!name) {
-        var toward = depth.dist > total / 2 ? depth.dist - 42 : depth.dist + 42;
-        toward = Math.max(step, Math.min(total - step, toward));
-        name = {pair: pointAtDistance(coords, seg, toward)};
-      }
-      return {depth: depth.pair, name: name.pair};
-    }
-
-    function textMarker(pair, text, className) {
-      L.circleMarker([pair[1], pair[0]], {
-        radius: 0,
-        weight: 0,
-        opacity: 0,
-        fillOpacity: 0,
-        interactive: false
-      }).bindTooltip(text, {
-        permanent: true,
-        direction: "center",
-        className: className,
-        opacity: 1
-      }).addTo(map);
-    }
-
     L.geoJSON(roads, {
-      style: function (feature) {
-        var reading = readings[feature.properties.osm_way_id];
-        return {color: UNNAMED_COLOR, weight: reading ? 16 : 12, opacity: 0};
+      style: function () {
+        return {color: ROAD_COLOR, weight: 12, opacity: 0};
       },
       onEachFeature: function (feature, layer) {
-        var wayId = feature.properties.osm_way_id;
-        var reading = readings[wayId];
         var popup = document.createElement("div");
         var name = document.createElement("div");
-        name.textContent = reading ? reading.label : "No soi name";
-        popup.appendChild(name);
-        if (reading) {
-          var depthLine = document.createElement("div");
-          depthLine.textContent = reading.text;
-          popup.appendChild(depthLine);
-          var anchors = labelAnchors(feature);
-          textMarker(anchors.depth, reading.text, "depth-label");
-          textMarker(anchors.name, reading.label, "soi-label");
-        }
+        name.textContent = "No soi name";
         var idLine = document.createElement("div");
-        idLine.textContent = "OSM way " + wayId;
+        idLine.textContent = "OSM way " + feature.properties.osm_way_id;
+        popup.appendChild(name);
         popup.appendChild(idLine);
         layer.bindPopup(popup);
       }
     }).addTo(map);
 
-    var legend = L.control({position: "bottomleft"});
-    legend.onAdd = function () {
-      var div = L.DomUtil.create("div", "legend");
-      DEPTH_SCALE.forEach(function (step) {
-        var row = document.createElement("div");
-        var swatch = document.createElement("i");
-        swatch.style.background = step.color;
-        row.appendChild(swatch);
-        row.appendChild(document.createTextNode(step.label));
-        div.appendChild(row);
-      });
-      return div;
-    };
-    legend.addTo(map);
-
     L.circleMarker(PIN, {
       radius: 6,
-      color: UNNAMED_COLOR,
+      color: ROAD_COLOR,
       weight: 2,
       fillColor: "#f6f3ee",
       fillOpacity: 1

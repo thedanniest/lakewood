@@ -1,10 +1,4 @@
 window.LAKEWOOD_SOI_LABELS = {
-  "_comment": "OSM way 931312194 is ซอย 11: the point 13.61523, 100.77697 lies on that line, and the next private residential way is about 80 m away. depth_cm is the day-1 worst reading for the whole way, in centimetres, and it is not rounded. A later link may use a sub-soi such as ซอย 15/2. Sois 5, 7, and 9 stay unlinked because those points are not on one line. A range such as 45-51 does not match. No house numbers.",
-  "links": [
-    {
-      "osm_way_id": 931312194,
-      "label": "ซอย 11",
-      "depth_cm": 95.5
-    }
-  ]
+  "_comment": "No soi name is linked. OSM way 931312194 stays on the map as an unnamed road. It is not ซอย 11. That name sits on a different road, about a kilometre west, and it is not attached here. A wrong name is worse than no name. No house numbers.",
+  "links": []
 };
