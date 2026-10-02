@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Draft</title>
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+    }
+    body {
+      display: flex;
+      flex-direction: column;
+      font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+      color: #2c3136;
+      background: #e7e2d8;
+    }
+    header {
+      flex: none;
+      padding: 12px 16px 10px;
+      background: #f6f3ee;
+      border-bottom: 1px solid #d5cfc4;
+    }
+    header strong {
+      display: block;
+      font-size: 20px;
+      font-weight: 600;
+    }
+    header p {
+      margin: 2px 0 0;
+      font-size: 16px;
+      line-height: 1.3;
+    }
+    #map {
+      flex: 1;
+      min-height: 0;
+      background: #e7e2d8;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <strong>Draft.</strong>
+    <p>This is not the water map.</p>
+    <p>Tap a line to split it.</p>
+  </header>
+  <div id="map" role="region" aria-label="Draft"></div>
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script>
+    (function () {
+      var STORAGE_KEY = "lakewood-phone-draft";
+      var PEN = ["#6b46a8", "#2f9b45", "#8d3a4e"];
+      var LIT = "#ffe566";
+      var MIN_PIECE_M = 12;
+      var ORIGIN_LAT = 13.616;
+      var ORIGIN_LON = 100.775;
+      var LAT_M = 111320;
+      var LON_M = 111320 * Math.cos(ORIGIN_LAT * Math.PI / 180);
+
+      var ORIGINAL = [
+        {
+          color: PEN[0],
+          points: [
+            [13.608831, 100.76682], [13.610084, 100.767206], [13.610838, 100.767426], [13.611394, 100.767591],
+            [13.612034, 100.76766], [13.612355, 100.767698], [13.612898, 100.767856], [13.613374, 100.767986],
+            [13.613551, 100.768033], [13.613935, 100.768217], [13.61405, 100.768272], [13.614191, 100.76834],
+            [13.614591, 100.768534], [13.61466, 100.768568], [13.61488, 100.768674], [13.614943, 100.768705],
+            [13.615106, 100.768774], [13.615583, 100.769115], [13.615849, 100.769285], [13.616126, 100.769512],
+            [13.615854, 100.770679], [13.615664, 100.77108], [13.61537, 100.771702], [13.615274, 100.771855],
+            [13.615107, 100.772148], [13.614756, 100.773219], [13.614662, 100.773641], [13.614609, 100.774373],
+            [13.614864, 100.774383], [13.614978, 100.774375], [13.615111, 100.774342], [13.615246, 100.77429],
+            [13.615372, 100.774216], [13.615482, 100.774143], [13.615827, 100.773731], [13.615951, 100.773585],
+            [13.616019, 100.773501], [13.616245, 100.773333], [13.616413, 100.773243], [13.616578, 100.773182],
+            [13.616749, 100.773147], [13.616856, 100.773144], [13.617087, 100.773142], [13.617293, 100.773189],
+            [13.617597, 100.773286], [13.618206, 100.773482], [13.618495, 100.773574], [13.618539, 100.773584],
+            [13.618981, 100.773679], [13.619079, 100.773012], [13.618885, 100.773002], [13.618741, 100.77293],
+            [13.618659, 100.772862], [13.618606, 100.77277], [13.618549, 100.772588], [13.618555, 100.772465],
+            [13.618604, 100.772375], [13.618749, 100.772186], [13.61879, 100.772081], [13.618788, 100.771997],
+            [13.618781, 100.771799], [13.618853, 100.771642], [13.618967, 100.771231], [13.619088, 100.77084],
+            [13.619098, 100.770702], [13.619094, 100.770543], [13.619113, 100.77028], [13.619146, 100.770108],
+            [13.619201, 100.769996], [13.619271, 100.769917], [13.619376, 100.769865], [13.619599, 100.769759],
+            [13.619645, 100.769699], [13.619654, 100.76961], [13.619638, 100.76953], [13.619453, 100.769052],
+            [13.619306, 100.768888], [13.619202, 100.768785], [13.61907, 100.768706], [13.618977, 100.76867],
+            [13.618885, 100.768594], [13.618845, 100.768559], [13.61876, 100.768546], [13.618747, 100.768295],
+            [13.617863, 100.76795], [13.617647, 100.767899], [13.617411, 100.767889], [13.617276, 100.767915],
+            [13.617173, 100.767949], [13.616968, 100.768065], [13.616871, 100.768143], [13.616791, 100.768208],
+            [13.616667, 100.768361], [13.616591, 100.768511], [13.616416, 100.769026], [13.616182, 100.769418]
+          ]
+        },
+        {
+          color: PEN[1],
+          points: [
+            [13.614609, 100.774373], [13.614546, 100.775225], [13.61452, 100.775638],
+            [13.614475, 100.776359], [13.614464, 100.776461], [13.614445, 100.776597]
+          ]
+        },
+        {
+          color: PEN[2],
+          points: [
+            [13.618655, 100.784796], [13.618529, 100.784598], [13.618307, 100.784233], [13.618208, 100.784072],
+            [13.617853, 100.783525], [13.617597, 100.783242], [13.617275, 100.783035], [13.616648, 100.782751],
+            [13.616619, 100.782738], [13.616017, 100.782533], [13.615355, 100.782321], [13.614682, 100.781914],
+            [13.614543, 100.781845], [13.614294, 100.781816], [13.613729, 100.781748]
+          ]
+        }
+      ];
+
+      function toXY(lat, lon) {
+        return [(lon - ORIGIN_LON) * LON_M, (lat - ORIGIN_LAT) * LAT_M];
+      }
+
+      function fromXY(x, y) {
+        return [ORIGIN_LAT + y / LAT_M, ORIGIN_LON + x / LON_M];
+      }
+
+      function lengthOf(points) {
+        var total = 0;
+        var i;
+        for (i = 1; i < points.length; i++) {
+          var a = toXY(points[i - 1][0], points[i - 1][1]);
+          var b = toXY(points[i][0], points[i][1]);
+          total += Math.hypot(b[0] - a[0], b[1] - a[1]);
+        }
+        return total;
+      }
+
+      function project(px, py, ax, ay, bx, by) {
+        var dx = bx - ax;
+        var dy = by - ay;
+        var len2 = dx * dx + dy * dy;
+        var t = 0;
+        if (len2 > 0) {
+          t = ((px - ax) * dx + (py - ay) * dy) / len2;
+          if (t < 0) t = 0;
+          if (t > 1) t = 1;
+        }
+        var x = ax + t * dx;
+        var y = ay + t * dy;
+        return {t: t, x: x, y: y, d: Math.hypot(px - x, py - y)};
+      }
+
+      function validPoint(pair) {
+        return Array.isArray(pair) && pair.length === 2 &&
+          typeof pair[0] === "number" && typeof pair[1] === "number" &&
+          pair[0] > 13.59 && pair[0] < 13.64 &&
+          pair[1] > 100.75 && pair[1] < 100.80;
+      }
+
+      function freshPieces() {
+        return ORIGINAL.map(function (stroke) {
+          return {color: stroke.color, lit: false, points: stroke.points.map(function (p) { return p.slice(); })};
+        });
+      }
+
+      function readPieces() {
+        var raw;
+        try {
+          raw = window.localStorage.getItem(STORAGE_KEY);
+        } catch (err) {
+          return freshPieces();
+        }
+        if (!raw) return freshPieces();
+        var data;
+        try {
+          data = JSON.parse(raw);
+        } catch (err) {
+          return freshPieces();
+        }
+        if (!Array.isArray(data) || data.length < 3) return freshPieces();
+        var litCount = 0;
+        var i;
+        for (i = 0; i < data.length; i++) {
+          var piece = data[i];
+          if (!piece || PEN.indexOf(piece.color) === -1 || piece.lit !== true && piece.lit !== false) {
+            return freshPieces();
+          }
+          if (!Array.isArray(piece.points) || piece.points.length < 2) return freshPieces();
+          if (!piece.points.every(validPoint)) return freshPieces();
+          if (piece.lit) litCount += 1;
+        }
+        if (litCount > 1) return freshPieces();
+        return data;
+      }
+
+      function savePieces(pieces) {
+        try {
+          window.localStorage.setItem(STORAGE_KEY, JSON.stringify(pieces));
+        } catch (err) {
+          /* this phone could not keep the cut */
+        }
+      }
+
+      var pieces = readPieces();
+      var group = L.layerGroup();
+
+      var map = L.map("map", {scrollWheelZoom: true});
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+      }).addTo(map);
+      group.addTo(map);
+
+      function draw() {
+        group.clearLayers();
+        pieces.forEach(function (piece, index) {
+          var casing = L.polyline(piece.points, {
+            color: "#f7f4ee",
+            weight: piece.lit ? 26 : 22,
+            opacity: 1,
+            interactive: false,
+            lineCap: "round",
+            lineJoin: "round"
+          });
+          var line = L.polyline(piece.points, {
+            color: piece.lit ? LIT : piece.color,
+            weight: piece.lit ? 16 : 12,
+            opacity: 0.95,
+            lineCap: "round",
+            lineJoin: "round"
+          });
+          line.on("click", function (event) {
+            L.DomEvent.stopPropagation(event);
+            cut(index, event.latlng);
+          });
+          casing.addTo(group);
+          line.addTo(group);
+        });
+      }
+
+      function cut(index, latlng) {
+        var piece = pieces[index];
+        if (!piece) return;
+        var click = toXY(latlng.lat, latlng.lng);
+        var best = null;
+        var i;
+        for (i = 0; i < piece.points.length - 1; i++) {
+          var a = toXY(piece.points[i][0], piece.points[i][1]);
+          var b = toXY(piece.points[i + 1][0], piece.points[i + 1][1]);
+          var hit = project(click[0], click[1], a[0], a[1], b[0], b[1]);
+          if (!best || hit.d < best.d) {
+            best = {i: i, t: hit.t, d: hit.d, x: hit.x, y: hit.y};
+          }
+        }
+        if (!best || best.d > 45) return;
+        var cutLL = fromXY(best.x, best.y);
+        cutLL = [Math.round(cutLL[0] * 1e6) / 1e6, Math.round(cutLL[1] * 1e6) / 1e6];
+        var left;
+        var right;
+        if (best.t <= 0.0001) {
+          left = piece.points.slice(0, best.i + 1);
+          right = piece.points.slice(best.i);
+        } else if (best.t >= 0.9999) {
+          left = piece.points.slice(0, best.i + 2);
+          right = piece.points.slice(best.i + 1);
+        } else {
+          left = piece.points.slice(0, best.i + 1).concat([cutLL]);
+          right = [cutLL].concat(piece.points.slice(best.i + 1));
+        }
+        if (left.length < 2 || right.length < 2) return;
+        if (lengthOf(left) < MIN_PIECE_M || lengthOf(right) < MIN_PIECE_M) return;
+        var lightRight = best.t >= 0.5;
+        pieces.forEach(function (other) { other.lit = false; });
+        var first = {color: piece.color, lit: !lightRight, points: left};
+        var second = {color: piece.color, lit: lightRight, points: right};
+        pieces.splice(index, 1, first, second);
+        savePieces(pieces);
+        draw();
+      }
+
+      draw();
+      var bounds = L.latLngBounds(ORIGINAL.reduce(function (all, stroke) {
+        return all.concat(stroke.points);
+      }, []));
+      map.fitBounds(bounds, {padding: [18, 18]});
+    })();
+  </script>
+</body>
+</html>
