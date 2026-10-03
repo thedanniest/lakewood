@@ -49,6 +49,17 @@
     #mark-in, #mark-out { flex: 1; }
     #copy-marks, #save-marks { margin-top: 8px; }
     #save-marks { margin-right: 8px; }
+    #mark-list {
+      margin: 8px 0 0;
+      max-height: 8em;
+      overflow: auto;
+      white-space: pre;
+      tab-size: 4;
+      font: inherit;
+      font-size: 15px;
+      line-height: 1.35;
+      color: #2c3136;
+    }
     #mark-in[aria-pressed="true"], #mark-out[aria-pressed="true"] {
       background: #2c3136;
       color: #f6f3ee;
@@ -82,16 +93,12 @@
     </div>
     <button type="button" id="save-marks">Save</button>
     <button type="button" id="copy-marks">Copy marks</button>
+    <pre id="mark-list" hidden></pre>
   </header>
   <div id="map" role="region" aria-label="Draft"></div>
   <script src="https://cdn.jsdelivr.net/gh/thedanniest/lakewood@cd613b8a8abb33a3bfaadc9917293a8773de11a8/vendor/leaflet/leaflet.js"></script>
   <script>
     (function () {
-      // The real values are coming.
-      var FORM_ACTION = "";
-      var ENTRY_ROAD = "";
-      var ENTRY_MARK = "";
-      var ENTRY_NAME = "";
       var STORAGE_KEY = "lakewood-draft-roads-v3";
       var ROAD = "#4a453f";
       var HALO = "#f7f4ee";
@@ -250,6 +257,7 @@
       var confirmButton = document.getElementById("mark-confirm");
       var copyButton = document.getElementById("copy-marks");
       var saveButton = document.getElementById("save-marks");
+      var listEl = document.getElementById("mark-list");
       var hint = document.getElementById("hint");
 
       var map = L.map("map", {scrollWheelZoom: true});
@@ -350,10 +358,9 @@
         if (line.mark === "in" || line.mark === "out") return true;
         return typeof line.name === "string" && line.name.trim() !== "";
       }
-      function roadField(line) {
-        var ways = wayIds(line);
-        if (line.confirmed && typeof line.num === "number") return String(line.num) + " " + ways;
-        return ways;
+      function numberField(line) {
+        if (line.confirmed && typeof line.num === "number") return String(line.num);
+        return "";
       }
       function markField(line) {
         if (line.mark === "in") return "In";
@@ -372,7 +379,7 @@
           return an - bn;
         });
         return rows.map(function (line) {
-          return [roadField(line), markField(line), line.name];
+          return [numberField(line), wayIds(line), markField(line), line.name];
         });
       }
       function marksText() {
@@ -380,55 +387,41 @@
         if (!rows.length) return "Nothing is marked.";
         return rows.map(function (row) { return row.join("\t"); }).join("\n");
       }
-      function formReady() {
-        return FORM_ACTION !== "" && ENTRY_ROAD !== "" && ENTRY_MARK !== "" && ENTRY_NAME !== "";
-      }
-      function stayedOnPhone() {
-        hint.textContent = "It stayed on this phone.";
-      }
-      function postRow(row) {
-        var body = new URLSearchParams();
-        body.set(ENTRY_ROAD, row[0]);
-        body.set(ENTRY_MARK, row[1]);
-        body.set(ENTRY_NAME, row[2]);
-        return fetch(FORM_ACTION, { method: "POST", mode: "cors", body: body }).then(function (res) {
-          if (!res.ok) throw new Error("post");
-        });
-      }
-      function saveMarks() {
-        save();
-        var rows = markedRows();
-        if (!rows.length) {
-          hint.textContent = "Nothing is marked.";
-          return;
-        }
-        if (!formReady()) {
-          stayedOnPhone();
-          return;
-        }
-        var chain = Promise.resolve();
-        rows.forEach(function (row) {
-          chain = chain.then(function () { return postRow(row); });
-        });
-        chain.then(function () {
-          hint.textContent = hintText();
-        }, stayedOnPhone);
-      }
-      function copyMarks() {
+      function showList() {
         var text = marksText();
+        listEl.hidden = false;
+        listEl.textContent = text;
+        return text;
+      }
+      function copyText(text) {
         function fallback() {
           var area = document.createElement("textarea");
           area.value = text;
           document.body.appendChild(area);
           area.select();
-          try { document.execCommand("copy"); } catch (err) { /* the phone could not copy */ }
+          var ok = false;
+          try { ok = document.execCommand("copy"); } catch (err) { ok = false; }
           document.body.removeChild(area);
+          return ok;
         }
         if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(text).then(function () {}, fallback);
-        } else {
-          fallback();
+          return navigator.clipboard.writeText(text).then(function () {
+            return true;
+          }, function () {
+            return fallback();
+          });
         }
+        return Promise.resolve(fallback());
+      }
+      function copyMarks() {
+        copyText(marksText());
+      }
+      function saveMarks() {
+        save();
+        var text = showList();
+        copyText(text).then(function (ok) {
+          if (!ok) hint.textContent = "It stayed on this phone.";
+        });
       }
       function draw() {
         group.clearLayers();
