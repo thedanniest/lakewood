@@ -74,6 +74,8 @@
     <div id="editor" hidden>
       <button type="button" id="mark-in" aria-pressed="false">In the village</button>
       <button type="button" id="mark-out" aria-pressed="false">Outside</button>
+      <button type="button" id="mark-clear">Clear</button>
+      <button type="button" id="mark-confirm">Confirm</button>
       <input id="road-name" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Road name">
       <button type="button" id="cut">Cut</button>
     </div>
@@ -148,6 +150,8 @@
             id: line.id,
             name: "",
             mark: "",
+            confirmed: false,
+            num: null,
             ways: cloneWays(line.ways),
             points: line.points.map(function (p) { return p.slice(); })
           };
@@ -168,13 +172,15 @@
           if (!waysOk(line.ways)) return cloneBuilt();
           if (!Array.isArray(line.points) || line.points.length < 2) return cloneBuilt();
           if (!line.points.every(pointOk)) return cloneBuilt();
+          line.confirmed = line.confirmed === true;
+          line.num = line.confirmed && typeof line.num === "number" ? line.num : null;
         }
         return data;
       }
       function save() {
         try {
           window.localStorage.setItem(STORAGE_KEY, JSON.stringify(lines.map(function (line) {
-            return {id: line.id, name: line.name, mark: line.mark, ways: line.ways, points: line.points};
+            return {id: line.id, name: line.name, mark: line.mark, confirmed: line.confirmed, num: line.num, ways: line.ways, points: line.points};
           })));
         } catch (err) { /* this phone could not keep the mark */ }
       }
@@ -206,6 +212,8 @@
       var cutButton = document.getElementById("cut");
       var markIn = document.getElementById("mark-in");
       var markOut = document.getElementById("mark-out");
+      var clearButton = document.getElementById("mark-clear");
+      var confirmButton = document.getElementById("mark-confirm");
       var copyButton = document.getElementById("copy-marks");
       var hint = document.getElementById("hint");
 
@@ -225,7 +233,11 @@
       }
       function hintText() {
         if (cutArmed) return "Tap that road where it should split.";
-        if (selectedId) return "The mark stays on this road.";
+        if (selectedId) {
+          var line = findLine(selectedId);
+          if (line && line.mark === "out" && !line.confirmed) return "Tap that road again to take the mark back.";
+          return "The mark stays on this road.";
+        }
         return "Tap a road to mark it.";
       }
       function showEditor() {
@@ -244,26 +256,73 @@
         markOut.setAttribute("aria-pressed", line.mark === "out" ? "true" : "false");
         cutButton.textContent = cutArmed ? "Cutting" : "Cut";
       }
+      function releaseMark(line) {
+        line.mark = "";
+        line.confirmed = false;
+        line.num = null;
+      }
       function setMark(mark) {
         var line = findLine(selectedId);
         if (!line) return;
-        line.mark = line.mark === mark ? "" : mark;
+        if (line.mark === mark && !line.confirmed) {
+          releaseMark(line);
+        } else {
+          line.mark = mark;
+          line.confirmed = false;
+          line.num = null;
+        }
+        save();
+        draw();
+      }
+      function clearOutside() {
+        var line = findLine(selectedId);
+        if (!line || line.confirmed || line.mark !== "out") return;
+        releaseMark(line);
+        save();
+        draw();
+      }
+      function nextNum() {
+        var used = {};
+        var i;
+        for (i = 0; i < lines.length; i++) {
+          if (lines[i].confirmed && typeof lines[i].num === "number") used[lines[i].num] = true;
+        }
+        var n = 1;
+        while (used[n]) n += 1;
+        return n;
+      }
+      function confirmMark() {
+        var line = findLine(selectedId);
+        if (!line || (line.mark !== "in" && line.mark !== "out") || line.confirmed) return;
+        line.num = nextNum();
+        line.confirmed = true;
         save();
         draw();
       }
       function wayIds(line) {
         return line.ways.map(function (w) { return String(w[0]); }).join(" ");
       }
+      function roadLabel(line) {
+        if (line.confirmed && typeof line.num === "number") {
+          if (line.mark === "in" && line.name) return String(line.num) + " " + line.name;
+          return String(line.num);
+        }
+        if (line.mark === "out") return "Out";
+        if (line.mark === "in" && line.name) return line.name;
+        return "";
+      }
       function marksText() {
-        var rows = [];
+        var confirmed = [];
         var i;
         for (i = 0; i < lines.length; i++) {
           var line = lines[i];
-          if (line.mark !== "in" && line.mark !== "out") continue;
-          rows.push((line.mark === "out" ? "Outside" : "In") + "\t" + line.name + "\t" + wayIds(line));
+          if (line.confirmed && (line.mark === "in" || line.mark === "out")) confirmed.push(line);
         }
-        if (!rows.length) return "Nothing is marked.";
-        return rows.join("\n");
+        confirmed.sort(function (a, b) { return a.num - b.num; });
+        if (!confirmed.length) return "Nothing is marked.";
+        return confirmed.map(function (line) {
+          return (line.mark === "out" ? "Out" : "In") + "\t" + line.num + "\t" + line.name + "\t" + wayIds(line);
+        }).join("\n");
       }
       function copyMarks() {
         var text = marksText();
@@ -318,9 +377,7 @@
             selectedVisible = visible;
             selectedHit = hit;
           }
-          var labelText = "";
-          if (line.mark === "out") labelText = "Outside";
-          else if (line.mark === "in" && line.name) labelText = line.name;
+          var labelText = roadLabel(line);
           if (labelText) {
             var at = midpoint(line.points);
             var label = document.createElement("span");
@@ -344,6 +401,13 @@
             draw();
             return;
           }
+        }
+        var again = findLine(id);
+        if (!cutArmed && selectedId === id && again && again.mark === "out" && !again.confirmed) {
+          releaseMark(again);
+          save();
+          draw();
+          return;
         }
         cutArmed = false;
         selectedId = id;
@@ -425,6 +489,8 @@
           id: line.id + "a",
           name: leftLonger ? line.name : "",
           mark: leftLonger ? line.mark : "",
+          confirmed: leftLonger ? line.confirmed : false,
+          num: leftLonger ? line.num : null,
           ways: sliceWays(line.ways, frac, "left"),
           points: left
         };
@@ -432,6 +498,8 @@
           id: line.id + "b",
           name: leftLonger ? "" : line.name,
           mark: leftLonger ? "" : line.mark,
+          confirmed: leftLonger ? false : line.confirmed,
+          num: leftLonger ? null : line.num,
           ways: sliceWays(line.ways, frac, "right"),
           points: right
         };
@@ -457,6 +525,8 @@
       });
       markIn.addEventListener("click", function () { setMark("in"); });
       markOut.addEventListener("click", function () { setMark("out"); });
+      clearButton.addEventListener("click", clearOutside);
+      confirmButton.addEventListener("click", confirmMark);
       copyButton.addEventListener("click", copyMarks);
 
       draw();
