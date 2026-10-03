@@ -97,6 +97,7 @@
   </header>
   <div id="map" role="region" aria-label="Draft"></div>
   <script src="https://cdn.jsdelivr.net/gh/thedanniest/lakewood@cd613b8a8abb33a3bfaadc9917293a8773de11a8/vendor/leaflet/leaflet.js"></script>
+  <script src="data/draft-marks.js"></script>
   <script>
     (function () {
       var STORAGE_KEY = "lakewood-draft-roads-v3";
@@ -171,10 +172,142 @@
           };
         });
       }
+      function draftRows() {
+        if (!window.DRAFT_ROWS) return [];
+        return window.DRAFT_ROWS.map(function (row) {
+          var parts = String(row).split("\t");
+          var ways = parts[0].split(" ").map(function (s) { return Number(s); }).filter(function (n) { return n; });
+          var mark = parts.length > 1 ? parts[1] : "";
+          var name = parts.length > 2 ? parts[2] : "";
+          if (!mark && name) mark = "in";
+          return {ways: ways, mark: mark, name: name};
+        }).filter(function (row) {
+          return (row.mark === "in" || row.mark === "out") && row.ways.length;
+        });
+      }
+      function roundPoint(pair) {
+        return [Math.round(pair[0] * 1e6) / 1e6, Math.round(pair[1] * 1e6) / 1e6];
+      }
+      function slicePoints(points, f0, f1) {
+        var total = lengthOf(points);
+        if (!(total > 0) || f1 <= f0) return points.map(function (p) { return p.slice(); });
+        var d0 = total * f0;
+        var d1 = total * f1;
+        var walked = 0;
+        var out = [];
+        function push(pair) {
+          var q = roundPoint(pair);
+          var last = out[out.length - 1];
+          if (!last || last[0] !== q[0] || last[1] !== q[1]) out.push(q);
+        }
+        function lerp(i, t) {
+          return [
+            points[i][0] + (points[i + 1][0] - points[i][0]) * t,
+            points[i][1] + (points[i + 1][1] - points[i][1]) * t
+          ];
+        }
+        if (f0 <= 0) push(points[0]);
+        var i;
+        for (i = 0; i < points.length - 1; i++) {
+          var a = toXY(points[i][0], points[i][1]);
+          var b = toXY(points[i + 1][0], points[i + 1][1]);
+          var step = Math.hypot(b[0] - a[0], b[1] - a[1]);
+          var seg0 = walked;
+          var seg1 = walked + step;
+          if (step > 0 && seg1 > d0 && seg0 < d1) {
+            if (seg0 < d0) push(lerp(i, (d0 - seg0) / step));
+            if (seg1 <= d1 + 1e-6) push(points[i + 1]);
+            else push(lerp(i, (d1 - seg0) / step));
+          }
+          walked = seg1;
+        }
+        return out.length >= 2 ? out : points.map(function (p) { return p.slice(); });
+      }
+      function sliceLine(line, start, end, id) {
+        var f0 = start === 0 ? 0 : line.ways[start][1];
+        var f1 = end === line.ways.length ? 1 : line.ways[end - 1][2];
+        var span = f1 - f0;
+        if (!(span > 0)) span = 1;
+        var ways = line.ways.slice(start, end).map(function (w) {
+          return [w[0], (w[1] - f0) / span, (w[2] - f0) / span];
+        });
+        if (ways.length) {
+          ways[0][1] = 0;
+          ways[ways.length - 1][2] = 1;
+        }
+        return {
+          id: id,
+          name: "",
+          mark: "",
+          confirmed: false,
+          num: null,
+          ways: ways,
+          points: slicePoints(line.points, f0, f1)
+        };
+      }
+      function matchAt(ids, index, rows) {
+        var best = null;
+        var r, k, ok;
+        for (r = 0; r < rows.length; r++) {
+          var want = rows[r].ways;
+          if (index + want.length > ids.length) continue;
+          ok = true;
+          for (k = 0; k < want.length; k++) {
+            if (ids[index + k] !== want[k]) ok = false;
+          }
+          if (ok && (!best || want.length > best.ways.length)) best = rows[r];
+        }
+        return best;
+      }
+      function applyDraft(lines) {
+        var rows = draftRows();
+        if (!rows.length) return lines;
+        var out = [];
+        var n, i, ids, parts, at, row, j;
+        for (n = 0; n < lines.length; n++) {
+          var line = lines[n];
+          ids = line.ways.map(function (w) { return w[0]; });
+          parts = [];
+          i = 0;
+          while (i < ids.length) {
+            row = matchAt(ids, i, rows);
+            if (row) {
+              parts.push({start: i, end: i + row.ways.length, row: row});
+              i += row.ways.length;
+            } else {
+              j = i + 1;
+              while (j < ids.length && !matchAt(ids, j, rows)) j += 1;
+              parts.push({start: i, end: j, row: null});
+              i = j;
+            }
+          }
+          if (parts.length === 1 && !parts[0].row) {
+            out.push(line);
+            continue;
+          }
+          if (parts.length === 1 && parts[0].start === 0 && parts[0].end === ids.length) {
+            line.mark = parts[0].row.mark;
+            line.name = parts[0].row.name;
+            line.confirmed = false;
+            line.num = null;
+            out.push(line);
+            continue;
+          }
+          for (at = 0; at < parts.length; at++) {
+            var piece = sliceLine(line, parts[at].start, parts[at].end, line.id + "p" + at);
+            if (parts[at].row) {
+              piece.mark = parts[at].row.mark;
+              piece.name = parts[at].row.name;
+            }
+            out.push(piece);
+          }
+        }
+        return out;
+      }
       function readLines() {
         var raw;
         try { raw = window.localStorage.getItem(STORAGE_KEY); } catch (err) { return cloneBuilt(); }
-        if (!raw) return cloneBuilt();
+        if (!raw) return applyDraft(cloneBuilt());
         var data;
         try { data = JSON.parse(raw); } catch (err) { return cloneBuilt(); }
         if (!Array.isArray(data) || data.length < 2) return cloneBuilt();
@@ -197,13 +330,23 @@
         var rest = storedId.slice(builtId.length);
         return rest.length > 0 && /^[ab]+$/.test(rest);
       }
+      function waysInside(builtLine, storedLine) {
+        var ids = {};
+        var i;
+        for (i = 0; i < builtLine.ways.length; i++) ids[builtLine.ways[i][0]] = true;
+        if (!storedLine.ways || !storedLine.ways.length) return false;
+        for (i = 0; i < storedLine.ways.length; i++) {
+          if (!ids[storedLine.ways[i][0]]) return false;
+        }
+        return true;
+      }
       function withNewRoads(stored) {
         var extra = [];
         var i, j, covered;
         for (i = 0; i < BUILT.length; i++) {
           covered = false;
           for (j = 0; j < stored.length; j++) {
-            if (cutOf(BUILT[i].id, stored[j].id)) covered = true;
+            if (cutOf(BUILT[i].id, stored[j].id) || waysInside(BUILT[i], stored[j])) covered = true;
           }
           if (covered) continue;
           extra.push({
@@ -346,13 +489,9 @@
         return line.ways.map(function (w) { return String(w[0]); }).join(" ");
       }
       function roadLabel(line) {
-        if (line.confirmed && typeof line.num === "number") {
-          if (line.mark === "in" && line.name) return String(line.num) + " " + line.name;
-          return String(line.num);
-        }
-        if (line.mark === "out") return "Out";
-        if (line.mark === "in" && line.name) return line.name;
-        return "";
+        if (line.mark !== "in" || !line.name) return "";
+        if (line.name === "Clubhouse") return "Clubhouse";
+        return "ซอย " + line.name;
       }
       function onTheList(line) {
         if (line.mark === "in" || line.mark === "out") return true;
@@ -429,6 +568,7 @@
         var selectedVisible = null;
         var selectedHit = null;
         lines.forEach(function (line) {
+          if (line.mark === "out") return;
           var selected = line.id === selectedId;
           if (selected) {
             selectedHalo = L.polyline(line.points, {
