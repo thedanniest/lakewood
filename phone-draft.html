@@ -101,7 +101,7 @@
   <script>
     (function () {
       var STORAGE_KEY = "lakewood-draft-roads-v3";
-      var DRAFT_PASS = 3;
+      var DRAFT_PASS = 4;
       var ROAD = "#4a453f";
       var HALO = "#f7f4ee";
       var MIN_PIECE_M = 12;
@@ -501,6 +501,27 @@
         if (line.name === "Clubhouse") return "Clubhouse";
         return "ซอย " + line.name;
       }
+      function labelLength(line) {
+        var gap = typeof line.gapAfter === "number" ? line.gapAfter : -1;
+        return strokedLength(line.points, gap);
+      }
+      function showsSharedLabel(line) {
+        if (line.mark !== "in" || !line.name) return false;
+        var mine = labelLength(line);
+        var mineAt = -1;
+        var i;
+        for (i = 0; i < lines.length; i++) {
+          if (lines[i] === line) mineAt = i;
+        }
+        for (i = 0; i < lines.length; i++) {
+          var other = lines[i];
+          if (other === line || other.mark !== "in" || other.name !== line.name) continue;
+          var len = labelLength(other);
+          if (len > mine) return false;
+          if (len === mine && i < mineAt) return false;
+        }
+        return true;
+      }
       function onTheList(line) {
         if (line.mark === "in" || line.mark === "out") return true;
         return typeof line.name === "string" && line.name.trim() !== "";
@@ -630,7 +651,7 @@
             selectedVisible = visible;
             selectedHit = hit;
           }
-          var labelText = roadLabel(line);
+          var labelText = showsSharedLabel(line) ? roadLabel(line) : "";
           if (labelText) {
             var at = midpoint(labelPoints(line));
             var label = document.createElement("span");
